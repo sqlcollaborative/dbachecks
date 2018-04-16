@@ -1,6 +1,6 @@
 <# It is important to test our test. It really is. 
- # (http://jakubjares.com/2017/12/07/testing-your-environment-tests/)
- #
+ # Read why (http://jakubjares.com/2017/12/07/testing-your-environment-tests/)
+ # Read how (http://dbain.wales/about/environmental-checks)
  #   To be able to do it with Pester one has to keep the test definition and the assertion 
  # in separate files. Writing a new test, or modifying an existing one typically involves 
  # modifications to the three related files:
