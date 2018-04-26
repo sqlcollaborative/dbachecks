@@ -1,4 +1,5 @@
 . "$PSScriptRoot/../../confirms/Database.AutoClose.ps1"
+. "$PSScriptRoot/../../internal/functions/PesterAssertions.ps1"
 
 Describe "Testing Auto Close Check" -Tags AutoClose {
     Mock Get-DbcConfigValue { return "True" } -ParameterFilter { $Name -like "policy.database.autoclose" }
@@ -56,10 +57,12 @@ Describe "Testing Auto Close Check" -Tags AutoClose {
         $config = Get-ConfigForAutoCloseCheck 
 
         It "The test should pass when the database's auto close is set to true" {
-            @{
-                AutoClose = $true
-            } | 
-            Confirm-AutoClose -With $config
+            {
+                @{
+                    AutoClose = $true
+                } | 
+                Confirm-AutoClose -With $config
+            } | Should -Pass 
         }
 
         It "The test should fail when the database's auto close is set to false" {
@@ -68,7 +71,7 @@ Describe "Testing Auto Close Check" -Tags AutoClose {
                     AutoClose = $false 
                 } | 
                 Confirm-AutoClose -With $config
-            } | Should -Throw 
+            } | Should -Fail 
         }
     }
 
@@ -78,10 +81,12 @@ Describe "Testing Auto Close Check" -Tags AutoClose {
         $config = Get-ConfigForAutoCloseCheck 
 
         It "The test should pass when the database's auto close is set to true" {
-            @{
-                AutoClose = $false 
-            } | 
-            Confirm-AutoClose -With $config
+            {
+                @{
+                    AutoClose = $false 
+                } | 
+                Confirm-AutoClose -With $config
+            } | Should -Pass
         }
 
         It "The test should fail when the database's auto close is set to false" {
@@ -90,7 +95,7 @@ Describe "Testing Auto Close Check" -Tags AutoClose {
                     AutoClose = $true
                 } | 
                 Confirm-AutoClose -With $config
-            } | Should -Throw 
+            } | Should -Fail
         }
     }
 }
