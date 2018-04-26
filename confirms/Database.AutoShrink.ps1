@@ -1,10 +1,10 @@
-. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1 
+. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1
 
 function Get-ConfigForAutoShrinkCheck {
     return @{
         AutoShrink = (Get-DbcConfigValue policy.database.autoshrink | Convert-ConfigValueToBoolean)
     }
-} 
+}
 
 function Confirm-AutoShrink {
     param (

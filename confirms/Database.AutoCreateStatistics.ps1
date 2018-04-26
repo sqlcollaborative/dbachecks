@@ -1,10 +1,10 @@
-. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1 
+. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1
 
 function Get-ConfigForAutoCreateStatisticsCheck {
     return @{
         AutoCreateStatistics = (Get-DbcConfigValue policy.database.autocreatestatistics | Convert-ConfigValueToBoolean)
     }
-} 
+}
 
 function Confirm-AutoCreateStatistics {
     param (

@@ -7,6 +7,6 @@ function Confirm-PseudoSimpleRecovery {
     process {
         if (!($TestObject.RecoveryModel -eq "SIMPLE")) {
             $TestObject.DataFilesWithoutBackup | Should -Be 0 -Because $Because
-        } 
+        }
     }
 }

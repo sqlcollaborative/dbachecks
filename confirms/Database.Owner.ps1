@@ -1,4 +1,4 @@
-. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1 
+. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1
 
 function Get-ConfigForDatabaseOwnerIsValidCheck {
     return @{
@@ -10,7 +10,7 @@ function Get-ConfigForDatabaseOwnerIsValidCheck {
 function Confirm-DatabaseOwnerIsValid {
     param (
         [parameter(Mandatory=$true,ValueFromPipeline=$true)]
-        [object[]]$TestObject, 
+        [object[]]$TestObject,
         [parameter(Mandatory=$true)][Alias("With")]
         [object]$config,
         [string]$Because
@@ -32,7 +32,7 @@ function Get-ConfigForDatabaseOwnerIsNotInvalidCheck {
 function Confirm-DatabaseOwnerIsNotInvalid {
     param (
         [parameter(Mandatory=$true,ValueFromPipeline=$true)]
-        [object[]]$TestObject, 
+        [object[]]$TestObject,
         [parameter(Mandatory=$true)][Alias("With")]
         [object]$config,
         [string]$Because

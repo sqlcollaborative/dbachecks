@@ -1,4 +1,4 @@
-. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1 
+. $PSScriptRoot/../internal/functions/Convert-ConfigValueToBoolean.ps1
 
 function Get-ConfigForPageVerifyCheck {
     $pageverifyValidValues = @("NONE", "TORN_PAGE_DETECTION", "CHECKSUM")
@@ -14,7 +14,7 @@ function Get-ConfigForPageVerifyCheck {
 function Confirm-PageVerify {
     param (
         [parameter(Mandatory=$true,ValueFromPipeline=$true)]
-        [object[]]$TestObject, 
+        [object[]]$TestObject,
         [parameter(Mandatory=$true)][Alias("With")]
         [object]$config,
         [string]$Because

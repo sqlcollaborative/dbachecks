@@ -1,8 +1,9 @@
-<# It is important to test our test. It really is. 
+<# It is important to test our test. It really is.
  # Read why (http://jakubjares.com/2017/12/07/testing-your-environment-tests/)
  # Read how (http://dbain.wales/about/environmental-checks)
- #   To be able to do it with Pester one has to keep the test definition and the assertion 
- # in separate files. Writing a new test, or modifying an existing one typically involves 
+
+ #   To be able to do it with Pester one has to keep the test definition and the assertion
+ # in separate files. Writing a new test, or modifying an existing one typically involves
  # modifications to the three related files:
  #
  # /confirms/Database.<CheckName>.ps1                     - where the confirms and config functions are defined
@@ -100,7 +101,7 @@ Describe "Database Collation" -Tags DatabaseCollation, FastDatabase, $filename {
         Context "Testing database collations on $psitem" {
             @(Get-DatabaseInfo -SqlInstance $psitem).ForEach{
                 It "Collation of [$($psitem.Database)] should be as expected" {
-                    $psitem | Confirm-DatabaseCollation -With $settings -Because 'you will get collation conflict errors in tempdb' 
+                    $psitem | Confirm-DatabaseCollation -With $settings -Because 'you will get collation conflict errors in tempdb'
                 }
             }
         }
@@ -121,7 +122,7 @@ Describe "Database Owner is not invalid" -Tags InvalidDatabaseOwner, FastDatabas
 }
 
 Describe "Page Verify" -Tags PageVerify, FastDatabase, $filename {
-    $settings = Get-ConfigForPageVerifyCheck 
+    $settings = Get-ConfigForPageVerifyCheck
     @(Get-Instance).ForEach{
         Context "Testing page verify on $psitem" {
             @(Get-DatabaseInfo -SqlInstance $psitem).ForEach{
@@ -425,7 +426,7 @@ Describe "Datafile Auto Growth Configuration" -Tags DatafileAutoGrowthType, $fil
     $datafilegrowthtype = Get-DbcConfigValue policy.database.filegrowthtype
     $datafilegrowthvalue = Get-DbcConfigValue policy.database.filegrowthvalue
     $exclude = Get-DbcConfigValue policy.database.filegrowthexcludedb
-    $exclude += $ExcludedDatabases 
+    $exclude += $ExcludedDatabases
     @(Get-Instance).ForEach{
         Context "Testing datafile growth type on $psitem" {
             @(Get-DbaDatabaseFile -SqlInstance $psitem -ExcludeDatabase $exclude ).ForEach{
