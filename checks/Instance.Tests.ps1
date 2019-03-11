@@ -3,7 +3,7 @@ $filename = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
 
 [string[]]$NotContactable = (Get-PSFConfig -Module dbachecks -Name global.notcontactable).Value
 
-@(Get-Instance).ForEach{
+# @(Get-Instance).ForEach{
     if ($NotContactable -notcontains $psitem) {
         $Instance = $psitem
         try {
@@ -731,7 +731,7 @@ $filename = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
         }
     }
 
-}
+#}
 
 Describe "SQL Browser Service" -Tags SqlBrowserServiceAccount, ServiceAccount, $filename {
     @(Get-ComputerName).ForEach{
