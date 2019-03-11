@@ -41,6 +41,9 @@ A list of databases to include if your check is database centric.
 .PARAMETER ExcludeDatabase
 A list of databases to exclude if your check is database centric.
 
+.PARAMETER Turbo
+Enables Runspaces for running tests in parallel
+
 .PARAMETER PassThru
 Returns a custom object (PSCustomObject) that contains the test results.
 
@@ -214,7 +217,8 @@ function Invoke-DbcCheck {
         [switch]$AllChecks,
         [switch]$Quiet,
         [object]$PesterOption,
-        [Pester.OutputTypes]$Show = 'All'
+        [Pester.OutputTypes]$Show = 'All',
+        [switch]$Turbo
     )
 
     dynamicparam {
@@ -353,6 +357,7 @@ function Invoke-DbcCheck {
 
         # Then we'll need a generic param passer that doesn't require global params 
         # cuz global params are hard
+        
 
         $finishedAllTheChecks = $false
         try {
@@ -371,11 +376,77 @@ function Invoke-DbcCheck {
                     }
 
                     Push-Location -Path $repo
+                    $PSBoundParameters|Out-String
                     ## remove any previous entries ready for this run
                     Set-PSFConfig -Module dbachecks -Name global.notcontactable -Value @()
-                    Invoke-Pester @PSBoundParameters
+                        if($Turbo){
+                    # BLOCK 1: Create and open runspace pool, setup runspaces array with min and max threads
+                    $pool = [RunspaceFactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS + 1)
+                    $pool.ApartmentState = "MTA"
+                    $pool.Open()
+                    $runspaces = @()
+    
+                    # BLOCK 2: Create reusable scriptblock. This is the workhorse of the runspace. Think of it as a function.
+                    $scriptblock = {
+                        Param (
+                            $SqlInstance,
+                            $SqlCredential,
+                            $Script,
+                            $Tag,
+                            $ExcludeTag,
+                            $Show
+                        )
+                        $Pester = @{
+                            Script = $Script
+                            Tag = $Tag
+                            ExcludeTag = $ExcludeTag
+                            Show = $Show
+                        }
+                        $PSDefaultParameterValues += @{ '*:SqlCredential' = $SqlCredential }
+                        # return whatever you want, or don't.
+                        return Invoke-Pester @Pester -PassThru
+                    }
+                   # @(Get-Instance).ForEach{
+                        foreach ($SqlInstance in @(Get-Instance)){
+                        $runspace = [PowerShell]::Create()
+                        $null = $runspace.AddScript($scriptblock)
+                        $null = $runspace.AddArgument($SqlInstance)
+                        $null = $runspace.AddArgument($SqlCredential)
+                        $null = $runspace.AddArgument($PSBoundParameters['Script'])
+                        $null = $runspace.AddArgument($PSBoundParameters['Tag'])
+                        $null = $runspace.AddArgument($PSBoundParameters['ExcludeTag'])
+                        $null = $runspace.AddArgument($Show)
+                        
+                        $runspace.RunspacePool = $pool
+                        # BLOCK 4: Add runspace to runspaces collection and "start" it
+                        # Asynchronously runs the commands of the PowerShell object pipeline
+                        $runspaces += [PSCustomObject]@{ Pipe = $runspace; Status = $runspace.BeginInvoke() }
+                    }
+
+                    # BLOCK 5: Wait for runspaces to finish
+                    while ($runspaces.Status.IsCompleted -notcontains $true) {}
+ 
+                    # BLOCK 6: Clean up
+                    foreach ($runspace in $runspaces ) {
+                        # EndInvoke method retrieves the results of the asynchronous call
+                        $results = $runspace.Pipe.EndInvoke($runspace.Status)
+                        $runspace.Pipe.Dispose()
+                        $results
+                    }
+                    
+                    $pool.Close() 
+                    $pool.Dispose()
                     Pop-Location
                 }
+                Else{
+                    foreach ($SqlInstance in @(Get-Instance)){
+                        $sqlinstance
+                        Invoke-Pester @PSBoundParameters
+                    }
+                }
+            }
+            
+                
             }
             $finishedAllTheChecks = $true
         }
