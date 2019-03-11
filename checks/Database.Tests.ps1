@@ -5,17 +5,18 @@ $filename = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
 [array]$ExcludedDatabases = Get-DbcConfigValue command.invokedbccheck.excludedatabases
 $ExcludedDatabases += $ExcludeDatabase
 [string[]]$NotContactable = (Get-PSFConfig -Module dbachecks -Name global.notcontactable).Value
-
-@(Get-Instance).ForEach{
-    if ($NotContactable -notcontains $psitem) {
-        $Instance = $psitem
+Write-Output "NOtContactable = $NotContactable and SQLINstance = $SQLINstance"
+#@(Get-Instance).ForEach{
+    if ($NotContactable -notcontains $SqlInstance) {
+        $Instance = $SqlInstance
         try {  
-            $Instance = $connectioncheck = Connect-DbaInstance  -SqlInstance $Instance -ErrorAction SilentlyContinue -ErrorVariable errorvar
+            $Instance = $connectioncheck = Connect-DbaInstance  -SqlInstance $SqlInstance -ErrorAction SilentlyContinue -ErrorVariable errorvar
         }
         catch {
-            $NotContactable += $Instance
+            $NotContactable += $SqlInstance
+            $errormsg = $_
         }
-        if ($NotContactable -notcontains $psitem) {
+        if ($NotContactable -notcontains $SqlInstance) {
             if ($null -eq $connectioncheck.version) {
                 $NotContactable += $Instance
             }
@@ -33,22 +34,22 @@ $ExcludedDatabases += $ExcludeDatabase
         $exclude += $Wrongcollation
         $exclude += $ExcludedDatabases
   
-        if ($NotContactable -contains $psitem) {
-            Context "Testing database collation on $psitem" {
-                It "Can't Connect to $Psitem" {
+        if ($NotContactable -contains $SqlInstance) {
+            Context "Testing database collation on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
                     $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                 }
             }
         }
         else {
-            Context "Testing database collation on $psitem" {
-                @(Test-DbaDbCollation -SqlInstance $psitem -Database $Database -ExcludeDatabase $exclude).ForEach{
+            Context "Testing database collation on $SqlInstance" {
+                @(Test-DbaDbCollation -SqlInstance $SqlInstance -Database $Database -ExcludeDatabase $exclude).ForEach{
                     It "database collation ($($psitem.DatabaseCollation)) should match server collation ($($psitem.ServerCollation)) for $($psitem.Database) on $($psitem.SqlInstance)" {
                         $psitem.ServerCollation | Should -Be $psitem.DatabaseCollation -Because "You will get collation conflict errors in tempdb"
                     }
                 }
                 if ($Wrongcollation) {
-                    @(Test-DbaDbCollation -SqlInstance $psitem -Database $Wrongcollation ).ForEach{
+                    @(Test-DbaDbCollation -SqlInstance $SqlInstance -Database $Wrongcollation ).ForEach{
                         It "database collation ($($psitem.DatabaseCollation)) should not match server collation ($($psitem.ServerCollation)) for $($psitem.Database) on $($psitem.SqlInstance)" {
                             $psitem.ServerCollation | Should -Not -Be $psitem.DatabaseCollation -Because "You have defined the database to have another collation then the server. You will get collation conflict errors in tempdb"
                         }
@@ -60,15 +61,15 @@ $ExcludedDatabases += $ExcludeDatabase
     }
 
     Describe "Suspect Page" -Tags SuspectPage, $filename {
-        if ($NotContactable -contains $psitem) {
-            Context "Testing suspect pages on $psitem" {
-                It "Can't Connect to $Psitem" {
+        if ($NotContactable -contains $SqlInstance) {
+            Context "Testing suspect pages on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
                     $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                 }
             }
         }
         else {
-            Context "Testing suspect pages on $psitem" {
+            Context "Testing suspect pages on $SqlInstance" {
                 $Instance.Databases.Where{if ($Database) {$_.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name}}.ForEach{
                     $results = Get-DbaSuspectPage -SqlInstance $psitem.Parent -Database $psitem.Name
                     It "$($psitem.Name) should return 0 suspect pages on $($psitem.Parent.Name)" {
@@ -84,23 +85,23 @@ $ExcludedDatabases += $ExcludeDatabase
             $destserver = Get-DbcConfigValue policy.backup.testserver
             $destdata = Get-DbcConfigValue policy.backup.datadir
             $destlog = Get-DbcConfigValue policy.backup.logdir
-            if ($NotContactable -contains $psitem) {
-                Context "Testing Backup Restore & Integrity Checks on $psitem" {
-                    It "Can't Connect to $Psitem" {
+            if ($NotContactable -contains $SqlInstance) {
+                Context "Testing Backup Restore & Integrity Checks on $SqlInstance" {
+                    It "Can't Connect to $SqlInstance" {
                         $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                     }
                 }
             }
             else {
                 if (-not $destserver) {
-                    $destserver = $psitem
+                    $destserver = $SqlInstance
                 }
-                Context "Testing Backup Restore & Integrity Checks on $psitem" {
-                    $srv = Connect-DbaInstance -SqlInstance $psitem
+                Context "Testing Backup Restore & Integrity Checks on $SqlInstance" {
+                    $srv = Connect-DbaInstance -SqlInstance $SqlInstance
                     $dbs = ($srv.Databases.Where{$_.CreateDate -lt (Get-Date).AddHours( - $graceperiod) -and $(if ($Database) {$_.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name})}).Name
                     if (-not ($destdata)) {$destdata -eq $srv.DefaultFile}
                     if (-not ($destlog)) {$destlog -eq $srv.DefaultLog}
-                    @(Test-DbaLastBackup -SqlInstance $psitem -Database $dbs -Destination $destserver -DataDirectory $destdata -LogDirectory $destlog -VerifyOnly).ForEach{                    if ($psitem.DBCCResult -notmatch "skipped for restored master") {
+                    @(Test-DbaLastBackup -SqlInstance $SqlInstance -Database $dbs -Destination $destserver -DataDirectory $destdata -LogDirectory $destlog -VerifyOnly).ForEach{                    if ($psitem.DBCCResult -notmatch "skipped for restored master") {
                             It "DBCC for $($psitem.Database) on $($psitem.SourceServer) Should Be success" {
                                 $psitem.DBCCResult | Should -Be "Success" -Because "You need to run DBCC CHECKDB to ensure your database is consistent"
                             }
@@ -116,16 +117,16 @@ $ExcludedDatabases += $ExcludeDatabase
 
     Describe "Last Backup VerifyOnly" -Tags TestLastBackupVerifyOnly, Backup, $filename {
         $graceperiod = Get-DbcConfigValue policy.backup.newdbgraceperiod
-        if ($NotContactable -contains $psitem) {
-            Context "VerifyOnly tests of last backups on $psitem" {
-                It "Can't Connect to $Psitem" {
+        if ($NotContactable -contains $SqlInstance) {
+            Context "VerifyOnly tests of last backups on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
                     $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                 }
             }
         }
         else {
-            Context "VerifyOnly tests of last backups on $psitem" {
-                @(Test-DbaLastBackup -SqlInstance $psitem -Database ((Connect-DbaInstance -SqlInstance $psitem).Databases.Where{$_.CreateDate -lt (Get-Date).AddHours( - $graceperiod) -and $(if ($Database) {$_.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name})}).Name -VerifyOnly).ForEach{
+            Context "VerifyOnly tests of last backups on $SqlInstance" {
+                @(Test-DbaLastBackup -SqlInstance $SqlInstance -Database ((Connect-DbaInstance -SqlInstance $SqlInstance).Databases.Where{$_.CreateDate -lt (Get-Date).AddHours( - $graceperiod) -and $(if ($Database) {$_.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name})}).Name -VerifyOnly).ForEach{
                     It "restore for $($psitem.Database) on $($psitem.SourceServer) Should be success" {
                         $psitem.RestoreResult | Should -Be "Success" -Because "The restore file has not successfully verified - you have no backup"
                     }
@@ -141,16 +142,16 @@ $ExcludedDatabases += $ExcludeDatabase
         [string[]]$targetowner = Get-DbcConfigValue policy.validdbowner.name
         [string[]]$exclude = Get-DbcConfigValue policy.validdbowner.excludedb
         $exclude += $ExcludedDatabases 
-        if ($NotContactable -contains $psitem) {
-            Context "Testing Database Owners on $psitem" {
-                It "Can't Connect to $Psitem" {
+        if ($NotContactable -contains $SqlInstance) {
+            Context "Testing Database Owners on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
                     $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                 }
             }
         }
         else {
-            Context "Testing Database Owners on $psitem" {
-                @((Connect-DbaInstance -SqlInstance $psitem).Databases.Where{if ($database) {$_.Name -in $database}else {$_.Name -notin $exclude}}).ForEach{
+            Context "Testing Database Owners on $SqlInstance" {
+                @((Connect-DbaInstance -SqlInstance $SqlInstance).Databases.Where{if ($database) {$_.Name -in $database}else {$_.Name -notin $exclude}}).ForEach{
                     It "Database $($psitem.Name) - owner $($psitem.Owner) should be in this list ( $( [String]::Join(", ", $targetowner) ) ) on $($psitem.Parent.Name)" {
                         $psitem.Owner | Should -BeIn $TargetOwner -Because "The account that is the database owner is not what was expected"
                     }
@@ -163,16 +164,16 @@ $ExcludedDatabases += $ExcludeDatabase
         [string[]]$targetowner = Get-DbcConfigValue policy.invaliddbowner.name
         [string[]]$exclude = Get-DbcConfigValue policy.invaliddbowner.excludedb
         $exclude += $ExcludedDatabases 
-        if ($NotContactable -contains $psitem) {
-            Context "Testing Database Owners on $psitem" {
-                It "Can't Connect to $Psitem" {
+        if ($NotContactable -contains $SqlInstance) {
+            Context "Testing Database Owners on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
                     $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                 }
             }
         }
         else {
-            Context "Testing Database Owners on $psitem" { 
-                @((Connect-DbaInstance -SqlInstance $psitem).Databases.Where{if ($database) {$_.Name -in $database}else {$_.Name -notin $exclude}}).ForEach{
+            Context "Testing Database Owners on $SqlInstance" { 
+                @((Connect-DbaInstance -SqlInstance $SqlInstance).Databases.Where{if ($database) {$_.Name -in $database}else {$_.Name -notin $exclude}}).ForEach{
                     It "Database $($psitem.Name) - owner $($psitem.Owner) should Not be in this list ( $( [String]::Join(", ", $targetowner) ) ) on $($psitem.Parent.Name)" {
                         $psitem.Owner | Should -Not -BeIn $TargetOwner -Because "The database owner was one specified as incorrect"
                     }
@@ -185,16 +186,16 @@ $ExcludedDatabases += $ExcludeDatabase
         $maxdays = Get-DbcConfigValue policy.dbcc.maxdays
         $datapurity = Get-DbcConfigValue skip.dbcc.datapuritycheck
         $graceperiod = Get-DbcConfigValue policy.backup.newdbgraceperiod
-        if ($NotContactable -contains $psitem) {
-            Context "Testing Last Good DBCC CHECKDB on $psitem" {
-                It "Can't Connect to $Psitem" {
+        if ($NotContactable -contains $SqlInstance) {
+            Context "Testing Last Good DBCC CHECKDB on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
                     $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                 }
             }
         }
         else {
-            Context "Testing Last Good DBCC CHECKDB on $psitem" {
-                @(Get-DbaLastGoodCheckDb -SqlInstance $psitem -Database ((Connect-DbaInstance -SqlInstance $psitem).Databases.Where{$_.CreateDate -lt (Get-Date).AddHours( - $graceperiod) -and ($_.IsAccessible -eq $true) -and $(if ($database) {$psitem.name -in $Database}else {$ExcludedDatabases -notcontains $_.Name})}).Name ).ForEach{
+            Context "Testing Last Good DBCC CHECKDB on $SqlInstance" {
+                @(Get-DbaLastGoodCheckDb -SqlInstance $SqlInstance -Database ((Connect-DbaInstance -SqlInstance $SqlInstance).Databases.Where{$_.CreateDate -lt (Get-Date).AddHours( - $graceperiod) -and ($_.IsAccessible -eq $true) -and $(if ($database) {$psitem.name -in $Database}else {$ExcludedDatabases -notcontains $_.Name})}).Name ).ForEach{
                     if ($psitem.Database -ne "tempdb") {
                         It "last good integrity check for $($psitem.Database) on $($psitem.SqlInstance) Should Be less than $maxdays days old" {
                             $psitem.LastGoodCheckDb | Should -BeGreaterThan (Get-Date).AddDays( - ($maxdays)) -Because "You should have run a DBCC CheckDB inside that time"
@@ -210,18 +211,18 @@ $ExcludedDatabases += $ExcludeDatabase
 
     Describe "Column Identity Usage" -Tags IdentityUsage, $filename {
         $maxpercentage = Get-DbcConfigValue policy.identity.usagepercent
-        if ($NotContactable -contains $psitem) {
-            Context "Testing Column Identity Usage on $psitem" {
-                It "Can't Connect to $Psitem" {
+        if ($NotContactable -contains $SqlInstance) {
+            Context "Testing Column Identity Usage on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
                     $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
                 }
             }
         }
         else {
-            Context "Testing Column Identity Usage on $psitem" {
+            Context "Testing Column Identity Usage on $SqlInstance" {
                 $exclude = $ExcludedDatabases
-                $exclude += (Connect-DbaInstance -SqlInstance $psitem).Databases.Where{$_.IsAccessible -eq $false}.Name
-                @(Test-DbaIdentityUsage -SqlInstance $psitem -Database $Database -ExcludeDatabase $exclude).ForEach{
+                $exclude += (Connect-DbaInstance -SqlInstance $SqlInstance).Databases.Where{$_.IsAccessible -eq $false}.Name
+                @(Test-DbaIdentityUsage -SqlInstance $SqlInstance -Database $Database -ExcludeDatabase $exclude).ForEach{
                     if ($psitem.Database -ne "tempdb") {
                         $columnfqdn = "$($psitem.Database).$($psitem.Schema).$($psitem.Table).$($psitem.Column)"
                         It "usage for $columnfqdn on $($psitem.SqlInstance) Should Be less than $maxpercentage percent" {
@@ -388,15 +389,15 @@ $ExcludedDatabases += $ExcludeDatabase
 
     Describe "Auto Close" -Tags AutoClose, $filename {
         $autoclose = Get-DbcConfigValue policy.database.autoclose
-        if ($NotContactable -contains $psitem) {
-            Context "Testing Auto Close on $psitem" {
-                It "Can't Connect to $Psitem" {
-                    $false  |  Should -BeTrue -Because "The instance should be available to be connected to!"
+        if ($NotContactable -contains $SqlInstance) {
+            Context "Testing Auto Close on $SqlInstance" {
+                It "Can't Connect to $SqlInstance" {
+                    $false  |  Should -BeTrue -Because "The instance $SqlInstance should be available to be connected to! $errormsg"
                 }
             }
         }
         else {
-            Context "Testing Auto Close on $psitem" {
+            Context "Testing Auto Close on $SqlInstance" {
                 $Instance.Databases.Where{$(if ($Database) {$PsItem.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name})}.ForEach{
                     It "$($psitem.Name) on $($psitem.Parent.Name) should have Auto Close set to $autoclose" {
                         $psitem.AutoClose | Should -Be $autoclose -Because "Because!"
@@ -920,7 +921,7 @@ $ExcludedDatabases += $ExcludeDatabase
             }
         }
     }
-}
+#}
 Set-PSFConfig -Module dbachecks -Name global.notcontactable -Value $NotContactable
 
 
