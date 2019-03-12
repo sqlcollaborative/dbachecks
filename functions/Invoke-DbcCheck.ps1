@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Invoke-DbcCheck is a SQL-centric Invoke-Pester wrapper
 
@@ -487,17 +487,57 @@ function Invoke-DbcCheck {
                            
                         }
                     
-                    $pool.Close() 
-                    $pool.Dispose()
-                    Pop-Location
-                }
-                Else{
-                    foreach ($SqlInstance in @(Get-Instance)){
-                        $sqlinstance
-                        Invoke-Pester @PSBoundParameters
+                        $pool.Close() 
+                        $pool.Dispose()
+                        Pop-Location
+                    }
+                    Else {
+                        foreach ($SqlInstance in @(Get-Instance)) {
+                            $results += Invoke-Pester @PSBoundParameters -PassThru
+                        }
+                    }
+                    if($Show -ne 'None'){
+                        $TotalTests = ($results | Measure-Object TotalCount -Sum).Sum
+                        $Passed = ($results | Measure-Object PassedCount -Sum).Sum
+                        $Failed =  ($results | Measure-Object FailedCount -Sum).Sum
+                        $Skipped =  ($results | Measure-Object SkippedCount -Sum).Sum
+                        $Pending =  ($results | Measure-Object PendingCount -Sum).Sum
+                        $Inconclusive =  ($results | Measure-Object InconclusiveCount -Sum).Sum
+
+                        Write-Host "===================== Finished ============================"
+                        Write-Host "Tests Completed - DbaChecks Summary - $TotalTests tests ran" -ForegroundColor White
+                        Write-Host "Tests Passed: $Passed, " -ForegroundColor Green -NoNewline
+                        if($Failed -eq 0){
+                            $foreground = 'DarkGray'
+                        }
+                        else{
+                            $foreground = 'Red'
+                        }
+                        Write-Host "Failed: $Failed, " -ForegroundColor $foreground -NoNewline
+                        if($skipped -eq 0){
+                            $foreground = 'DarkGray'
+                        }
+                        else{
+                            $foreground = 'Yellow'
+                        }
+                        Write-Host "Skipped: $Skipped, " -ForegroundColor $foreground -NoNewline
+                        if($Pending -eq 0){
+                            $foreground = 'DarkGray'
+                        }
+                        else{
+                            $foreground = 'White'
+                        }
+                        Write-Host "Pending: 0, " -ForegroundColor $foreground -NoNewline
+                        if($Inconclusive -eq 0){
+                            $foreground = 'DarkGray'
+                        }
+                        else{
+                            $foreground = 'Red'
+                        }
+                        Write-Host "Inconclusive: $Inconclusive"  -ForegroundColor $foreground 
+                      #  $results
                     }
                 }
-            }
             
                 
             }
