@@ -418,60 +418,74 @@ function Invoke-DbcCheck {
                     ## remove any previous entries ready for this run
                     if ($PSCmdlet.ShouldProcess("NotContactable Config" , "Setting to Null")) {
                         Set-PSFConfig -Module dbachecks -Name global.notcontactable -Value @()
-                        if($Turbo){
-                    # BLOCK 1: Create and open runspace pool, setup runspaces array with min and max threads
-                    $pool = [RunspaceFactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS + 1)
-                    $pool.ApartmentState = "MTA"
-                    $pool.Open()
-                    $runspaces = @()
-    
-                    # BLOCK 2: Create reusable scriptblock. This is the workhorse of the runspace. Think of it as a function.
-                    $scriptblock = {
-                        Param (
-                            $SqlInstance,
-                            $SqlCredential,
-                            $Script,
-                            $Tag,
-                            $ExcludeTag,
-                            $Show
-                        )
-                        $Pester = @{
-                            Script = $Script
-                            Tag = $Tag
-                            ExcludeTag = $ExcludeTag
-                            Show = $Show
+                    }
+                    $Results = @()
+                    if ($Turbo) {
+                        if ($PSCmdlet.ShouldProcess("RunSpace" , "Creating RunSpace Pool")) {
+                        # BLOCK 1: Create and open runspace pool, setup runspaces array with min and max threads
+                        $pool = [RunspaceFactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS + 1)
+                        $pool.ApartmentState = "MTA"
+                        $pool.Open()
+                        $runspaces = @()
                         }
-                        $PSDefaultParameterValues += @{ '*:SqlCredential' = $SqlCredential }
-                        # return whatever you want, or don't.
-                        return Invoke-Pester @Pester -PassThru
-                    }
-                   # @(Get-Instance).ForEach{
-                        foreach ($SqlInstance in @(Get-Instance)){
-                        $runspace = [PowerShell]::Create()
-                        $null = $runspace.AddScript($scriptblock)
-                        $null = $runspace.AddArgument($SqlInstance)
-                        $null = $runspace.AddArgument($SqlCredential)
-                        $null = $runspace.AddArgument($PSBoundParameters['Script'])
-                        $null = $runspace.AddArgument($PSBoundParameters['Tag'])
-                        $null = $runspace.AddArgument($PSBoundParameters['ExcludeTag'])
-                        $null = $runspace.AddArgument($Show)
-                        
-                        $runspace.RunspacePool = $pool
-                        # BLOCK 4: Add runspace to runspaces collection and "start" it
-                        # Asynchronously runs the commands of the PowerShell object pipeline
-                        $runspaces += [PSCustomObject]@{ Pipe = $runspace; Status = $runspace.BeginInvoke() }
-                    }
+                        # BLOCK 2: Create reusable scriptblock. This is the workhorse of the runspace. Think of it as a function.
+                        $scriptblock = {
+                            Param (
+                                $SqlInstance,
+                                $SqlCredential,
+                                $Script,
+                                $Tag,
+                                $ExcludeTag,
+                                $Show
+                            )
+                            $Pester = @{
+                                Script     = $Script
+                                Tag        = $Tag
+                                ExcludeTag = $ExcludeTag
+                                Show       = $Show
+                            }
+                            $PSDefaultParameterValues += @{ '*:SqlCredential' = $SqlCredential }
+                            # return whatever you want, or don't.
+                            Return Invoke-Pester @Pester -PassThru
+                        }
+                        # @(Get-Instance).ForEach{
+                        foreach ($SqlInstance in @(Get-Instance)) {
+                            if ($PSCmdlet.ShouldProcess("Runspace" , "Create Runspace")) {
+                            $runspace = [PowerShell]::Create()
+                            $null = $runspace.AddScript($scriptblock)
+                            $null = $runspace.AddArgument($SqlInstance)
+                            if ($PSCmdlet.ShouldProcess("Argument" , "Add SQLCredential $($SqlCredential.UserName) ")) {
+                            $null = $runspace.AddArgument($SqlCredential)
+                            }
+                            $null = $runspace.AddArgument($PSBoundParameters['Script'])
+                            $null = $runspace.AddArgument($PSBoundParameters['Tag'])
+                            $null = $runspace.AddArgument($PSBoundParameters['ExcludeTag'])
+                            $null = $runspace.AddArgument($Show)
+                            }
+                            if ($PSCmdlet.ShouldProcess("Runspace Pool" , "Add runspace to ")) {
+                            $runspace.RunspacePool = $pool
+                            }
+                            # BLOCK 4: Add runspace to runspaces collection and "start" it
+                            # Asynchronously runs the commands of the PowerShell object pipeline
+                            if ($PSCmdlet.ShouldProcess("Runspaces" , "Run the RunSpaces")) {
+                            $runspaces += [PSCustomObject]@{ Pipe = $runspace; Status = $runspace.BeginInvoke() }
+                            }
+                        }
 
-                    # BLOCK 5: Wait for runspaces to finish
-                    while ($runspaces.Status.IsCompleted -notcontains $true) {}
+                        # BLOCK 5: Wait for runspaces to finish
+                        while ($runspaces.Status.IsCompleted -notcontains $true) {}
  
-                    # BLOCK 6: Clean up
-                    foreach ($runspace in $runspaces ) {
-                        # EndInvoke method retrieves the results of the asynchronous call
-                        $results = $runspace.Pipe.EndInvoke($runspace.Status)
-                        $runspace.Pipe.Dispose()
-                        $results
-                    }
+                        # BLOCK 6: Clean up
+                        foreach ($runspace in $runspaces ) {
+                            # EndInvoke method retrieves the results of the asynchronous call
+                            if ($PSCmdlet.ShouldProcess("runspacepool" , "get results from runspace")) {
+                            $results += $runspace.Pipe.EndInvoke($runspace.Status)
+                            }
+                            if ($PSCmdlet.ShouldProcess("$runspace" , "Dispose ")) {
+                            $runspace.Pipe.Dispose()
+                            }
+                           
+                        }
                     
                     $pool.Close() 
                     $pool.Dispose()
