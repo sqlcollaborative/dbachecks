@@ -151,7 +151,7 @@ Write-Output "NOtContactable = $NotContactable and SQLINstance = $SQLINstance"
         }
         else {
             Context "Testing Database Owners on $SqlInstance" {
-                @((Connect-DbaInstance -SqlInstance $SqlInstance).Databases.Where{if ($database) {$_.Name -in $database}else {$_.Name -notin $exclude}}).ForEach{
+                @($Instance.Databases.Where{if ($database) {$_.Name -in $database}else {$_.Name -notin $exclude}}).ForEach{
                     It "Database $($psitem.Name) - owner $($psitem.Owner) should be in this list ( $( [String]::Join(", ", $targetowner) ) ) on $($psitem.Parent.Name)" {
                         $psitem.Owner | Should -BeIn $TargetOwner -Because "The account that is the database owner is not what was expected"
                     }
