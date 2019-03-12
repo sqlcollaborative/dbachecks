@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
 Invoke-DbcCheck is a SQL-centric Invoke-Pester wrapper
 
@@ -183,7 +183,7 @@ about_Pester
 #>
 
 function Invoke-DbcCheck {
-    [CmdletBinding(DefaultParameterSetName = 'Default')]
+    [CmdletBinding(DefaultParameterSetName = 'Default', SupportsShouldProcess)]
     param (
         [Alias('Path', 'relative_path')]
         [object[]]$Script,
@@ -222,21 +222,25 @@ function Invoke-DbcCheck {
     )
 
     dynamicparam {
+        Write-PSFMessage "Getting dbachecks configuration" -Level Verbose
         $config = Get-PSFConfig -Module dbachecks
 
-        $RuntimeParamDic = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
-
+        if ($PSCmdlet.ShouldProcess("" , "Creating Runtime Parameter Dictionary")) {
+            $RuntimeParamDic = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
+        }
         foreach ($setting in $config) {
             $name = $setting.Name
             $name = "Config" + (($name.Split(".") | ForEach-Object { $_.SubString(0, 1).ToUpper() + $_.SubString(1) }) -join '')
-            $ParamAttrib = New-Object System.Management.Automation.ParameterAttribute
-            $ParamAttrib.ParameterSetName = '__AllParameterSets'
-            $AttribColl = New-Object  System.Collections.ObjectModel.Collection[System.Attribute]
-            $AttribColl.Add($ParamAttrib)
-
-            $RuntimeParam = New-Object System.Management.Automation.RuntimeDefinedParameter($name, [object], $AttribColl)
-
-            $RuntimeParamDic.Add($name, $RuntimeParam)
+            if ($PSCmdlet.ShouldProcess("" , "Creating new parameter attribute for $Name ")) {
+                $ParamAttrib = New-Object System.Management.Automation.ParameterAttribute
+                $ParamAttrib.ParameterSetName = '__AllParameterSets'
+                $AttribColl = New-Object  System.Collections.ObjectModel.Collection[System.Attribute]
+                $AttribColl.Add($ParamAttrib)
+            }
+            if ($PSCmdlet.ShouldProcess("Runtime Dictionary" , "Adding Parameter Attribute $Name ")) {
+                $RuntimeParam = New-Object System.Management.Automation.RuntimeDefinedParameter($name, [object], $AttribColl)
+                $RuntimeParamDic.Add($name, $RuntimeParam)
+            }
         }
         return $RuntimeParamDic
     }
@@ -247,45 +251,57 @@ function Invoke-DbcCheck {
                 Stop-PSFFunction -Message "$ConfigFile does not exist"
                 return
             }
-            $null = Import-DbcConfig -Path $ConfigFile -WarningAction SilentlyContinue -Temporary
+            if ($PSCmdlet.ShouldProcess("$ConfigFile" , "Importing the dbachecks configuration")) {
+                $null = Import-DbcConfig -Path $ConfigFile -WarningAction SilentlyContinue -Temporary
+            }
         }
         
         $config = Get-PSFConfig -Module dbachecks
         foreach ($key in $PSBoundParameters.Keys | Where-Object { $_ -like "Config*" }) {
             if ($item = $config | Where-Object { "Config$($_.Name.Replace('.', ''))" -eq $key }) {
-                Set-PSFConfig -Module dbachecks -Name $item.Name -Value $PSBoundParameters.$key
+                if ($PSCmdlet.ShouldProcess("bound parameter $key" , "Setting the config $($item.Name) ")) {
+                    Set-PSFConfig -Module dbachecks -Name $item.Name -Value $PSBoundParameters.$key
+                }
             }
         }
 
         if ($SqlCredential) {
-            if ($PSDefaultParameterValues) {
-                $PSDefaultParameterValues.Remove('*:SqlCredential')
-                $newvalue = $PSDefaultParameterValues += @{ '*:SqlCredential' = $SqlCredential }
-                Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value $newvalue
-            }
-            else {
-                Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value @{ '*:SqlCredential' = $SqlCredential }
+            if ($PSCmdlet.ShouldProcess("Default Parameter Value" , "Adding SQL Credential ")) {
+                if ($PSDefaultParameterValues) {
+                    $PSDefaultParameterValues.Remove('*:SqlCredential')    
+                    $newvalue = $PSDefaultParameterValues += @{ '*:SqlCredential' = $SqlCredential }
+                    Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value $newvalue
+                }
+                else {
+                    Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value @{ '*:SqlCredential' = $SqlCredential }
+                }
             }
         }
         else {
             if ($PSDefaultParameterValues) {
-                $PSDefaultParameterValues.Remove('*:SqlCredential')
+                if ($PSCmdlet.ShouldProcess("Default Parameters" , "Removing SQL Credential")) {
+                    $PSDefaultParameterValues.Remove('*:SqlCredential')
+                }
             }
         }
 
         if ($Credential) {
-            if ($PSDefaultParameterValues) {
-                $PSDefaultParameterValues.Remove('*Dba*:Credential')
-                $newvalue = $PSDefaultParameterValues += @{ '*Dba*:Credential' = $Credential }
-                Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value $newvalue
-            }
-            else {
-                Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value @{ '*Dba*:Credential' = $Credential }
+            if ($PSCmdlet.ShouldProcess("Default Parameter Value" , "Adding Windows Credential ")) {
+                if ($PSDefaultParameterValues) {
+                    $PSDefaultParameterValues.Remove('*Dba*:Credential')
+                    $newvalue = $PSDefaultParameterValues += @{ '*Dba*:Credential' = $Credential }
+                    Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value $newvalue
+                }
+                else {
+                    Set-Variable -Scope 0 -Name PSDefaultParameterValues -Value @{ '*Dba*:Credential' = $Credential }
+                }
             }
         }
         else {
             if ($PSDefaultParameterValues) {
-                $PSDefaultParameterValues.Remove('*Dba*:Credential')
+                if ($PSCmdlet.ShouldProcess("Default Parameters" , "Removing Windows Credential")) {
+                    $PSDefaultParameterValues.Remove('*Dba*:Credential')
+                }
             }
         }
     }
@@ -296,9 +312,10 @@ function Invoke-DbcCheck {
         #get the output config for dbatools and store it to set it back at the end
         $dbatoolsoutputconfig = Get-DbatoolsConfigValue -FullName message.consoleoutput.disable
         if (!$dbatoolsoutputconfig) {
-            Set-DbatoolsConfig -FullName message.consoleoutput.disable -Value $true
+            if ($PSCmdlet.ShouldProcess("Dbatools Config" , "Alter dbatools config console output setting to disabled")) {
+                Set-DbatoolsConfig -FullName message.consoleoutput.disable -Value $true
+            }
         }
-
 
         if (-not $Script -and -not $TestName -and -not $Check -and -not $ExcludeCheck -and -not $AllChecks) {
             Stop-PSFFunction -Message "Please specify Check, ExcludeCheck, Script, TestName or AllChecks"
@@ -316,24 +333,42 @@ function Invoke-DbcCheck {
             if (Test-PSFParameterBinding -ParameterName $param) {
                 $value = Get-Variable -Name $param
                 if ($value.InputObject) {
-                    Set-Variable -Scope 0 -Name $param -Value $value.InputObject -ErrorAction SilentlyContinue
-                    $PSDefaultParameterValues.Add( { "*-Dba*:$param", $value.InputObject })
+                    if ($PSCmdlet.ShouldProcess("Default Parameter Value" , "Adding bound parameter $param with value $value ")) {
+                        Set-Variable -Scope 0 -Name $param -Value $value.InputObject -ErrorAction SilentlyContinue
+                        $PSDefaultParameterValues.Add( { "*-Dba*:$param", $value.InputObject })
+                    }
                 }
             }
             else {
-                $PSDefaultParameterValues.Remove( { "*-Dba*:$param" })
+                if ($PSCmdlet.ShouldProcess("Default Parameters Value" , "Removing bound parameter $param")) {
+                    $PSDefaultParameterValues.Remove( { "*-Dba*:$param" })
+                }
             }
-            $null = $PSBoundParameters.Remove($param)
+            if ($PSCmdlet.ShouldProcess("$param" , "Removing bound parameter ")) {
+                $null = $PSBoundParameters.Remove($param)
+            }
         }
 
 
         # Lil bit of cleanup here, for a switcharoo
-        $null = $PSBoundParameters.Remove('AllChecks')
-        $null = $PSBoundParameters.Remove('Check')
-        $null = $PSBoundParameters.Remove('ExcludeCheck')
-        $null = $PSBoundParameters.Remove('ConfigFile')
-        $null = $PSBoundParameters.Add('Tag', $Check)
-        $null = $PSBoundParameters.Add('ExcludeTag', $ExcludeCheck)
+        if ($PSCmdlet.ShouldProcess("AllChecks" , "Removing bound parameter ")) {
+            $null = $PSBoundParameters.Remove('AllChecks')
+        }
+        if ($PSCmdlet.ShouldProcess("Check" , "Removing bound parameter ")) {
+            $null = $PSBoundParameters.Remove('Check')
+        }
+        if ($PSCmdlet.ShouldProcess("ExcludeCheck" , "Removing bound parameter ")) {
+            $null = $PSBoundParameters.Remove('ExcludeCheck')
+        }
+        if ($PSCmdlet.ShouldProcess("ConfigFile" , "Removing bound parameter ")) {
+            $null = $PSBoundParameters.Remove('ConfigFile')
+        }
+        if ($PSCmdlet.ShouldProcess("Tag" , "Adding bound parameter Tag with value $Check ")) {
+            $null = $PSBoundParameters.Add('Tag', $Check)
+        }
+        if ($PSCmdlet.ShouldProcess("ExcludeTag" , "Adding bound parameter ExcludeTag with value $ExcludeCheck ")) {
+            $null = $PSBoundParameters.Add('ExcludeTag', $ExcludeCheck)
+        }
 
         $globalexcludedchecks = Get-PSFConfigValue -FullName dbachecks.command.invokedbccheck.excludecheck
         $global:ChecksToExclude = $ExcludeCheck + $globalexcludedchecks
@@ -367,18 +402,22 @@ function Invoke-DbcCheck {
                     if ($OutputFormat -eq "NUnitXml" -and -not $OutputFile) {
                         $number = $repos.IndexOf($repo)
                         $timestamp = Get-Date -format "yyyyMMddHHmmss"
-                        $PSBoundParameters['OutputFile'] = "$script:maildirectory\report-$number-$pid-$timestamp.xml"
+                        if ($PSCmdlet.ShouldProcess("OutputFile" , "Adding bound parameter OutputFile with value $($script):maildirectory\report-$number-$pid-$timestamp.xml) ")) {
+                            $PSBoundParameters['OutputFile'] = "$script:maildirectory\report-$number-$pid-$timestamp.xml"
+                        }
                     }
 
                     if ($Check.Count -gt 0) {
                         # specific checks were listed. find the necessary script files. 
-                        $PSBoundParameters['Script'] = (Get-CheckFile -Repo $repo -Check $check)
+                        if ($PSCmdlet.ShouldProcess("Script" , "Adding bound parameter Script with value from Get-CheckFile ")) {                    
+                            $PSBoundParameters['Script'] = (Get-CheckFile -Repo $repo -Check $check)
+                        }
                     }
 
                     Push-Location -Path $repo
-                    $PSBoundParameters|Out-String
                     ## remove any previous entries ready for this run
-                    Set-PSFConfig -Module dbachecks -Name global.notcontactable -Value @()
+                    if ($PSCmdlet.ShouldProcess("NotContactable Config" , "Setting to Null")) {
+                        Set-PSFConfig -Module dbachecks -Name global.notcontactable -Value @()
                         if($Turbo){
                     # BLOCK 1: Create and open runspace pool, setup runspaces array with min and max threads
                     $pool = [RunspaceFactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS + 1)
@@ -455,7 +494,9 @@ function Invoke-DbcCheck {
         }
         finally {
             # reset the config to original value
-            Set-DbatoolsConfig -FullName message.consoleoutput.disable -Value $dbatoolsoutputconfig
+            if ($PSCmdlet.ShouldProcess("$dbatoolsoutputconfig" , "Alter dbatools config console output setting to original value ")) {
+                Set-DbatoolsConfig -FullName message.consoleoutput.disable -Value $dbatoolsoutputconfig
+            }
 
             if (!($finishedAllTheChecks)) {
                 Write-PSFMessage -Level Warning -Message "Execution was cancelled!"
