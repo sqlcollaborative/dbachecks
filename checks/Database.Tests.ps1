@@ -459,6 +459,16 @@ $ExcludedDatabases += $ExcludeDatabase
             Context "Testing last full backups on $psitem" {
                 $InstanceSMO.Databases.Where{ ($psitem.Name -ne 'tempdb') -and $Psitem.CreateDate.ToUniversalTime() -lt (Get-Date).ToUniversalTime().AddHours( - $graceperiod) -and $(if ($Database) {$PsItem.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name})}.ForEach{
                     $skip = ($psitem.Status -match "Offline") -or ($psitem.IsAccessible -eq $false) -or ($psitem.Readonly -eq $true -and $skipreadonly -eq $true)
+                    if ($InstanceSMO.VersionMajor -ge 11) {
+                        if (($Psitem.Parent.AvailabilityGroups.AvailabilityDatabases.Name -contains $Psitem.Name)) {
+                            $Parent = $psitem.Parent.Name 
+                            if (($Psitem.Parent.AvailabilityGroups.AvailabilityReplicas.Where{$_.Name -eq $Parent}.Role) -ne ($Psitem.Parent.AvailabilityGroups.AutomatedBackupPreference.ToString())) {
+                                $Skip = $true
+                            }else{
+                
+                            }
+                        }
+                    }
                     It -Skip:$skip "$($psitem.Name) full backups on $($psitem.Parent.Name) should be less than $maxfull days" {
                         $psitem.LastBackupDate.ToUniversalTime() | Should -BeGreaterThan (Get-Date).ToUniversalTime().AddDays( - ($maxfull)) -Because "Taking regular backups is extraordinarily important"
                     }
@@ -483,6 +493,16 @@ $ExcludedDatabases += $ExcludeDatabase
                 Context "Testing last diff backups on $psitem" {
                     @($InstanceSMO.Databases.Where{ (-not $psitem.IsSystemObject) -and $Psitem.CreateDate.ToUniversalTime() -lt (Get-Date).ToUniversalTime().AddHours( - $graceperiod) -and $(if ($Database) {$PsItem.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name})}).ForEach{
                         $skip = ($psitem.Status -match "Offline") -or ($psitem.IsAccessible -eq $false) -or ($psitem.Readonly -eq $true -and $skipreadonly -eq $true)
+                        if ($InstanceSMO.VersionMajor -ge 11) {
+                            if (($Psitem.Parent.AvailabilityGroups.AvailabilityDatabases.Name -contains $Psitem.Name)) {
+                                $Parent = $psitem.Parent.Name 
+                                if (($Psitem.Parent.AvailabilityGroups.AvailabilityReplicas.Where{$_.Name -eq $Parent}.Role) -ne ($Psitem.Parent.AvailabilityGroups.AutomatedBackupPreference.ToString())) {
+                                    $Skip = $true
+                                }else{
+                    
+                                }
+                            }
+                        }
                         It -Skip:$skip "$($psitem.Name) diff backups on $($psitem.Parent.Name) should be less than $maxdiff hours" {
                             $psitem.LastDifferentialBackupDate.ToUniversalTime() | Should -BeGreaterThan (Get-Date).ToUniversalTime().AddHours( - ($maxdiff)) -Because 'Taking regular backups is extraordinarily important'
                         }
@@ -508,6 +528,16 @@ $ExcludedDatabases += $ExcludeDatabase
                 @($InstanceSMO.Databases.Where{ (-not $psitem.IsSystemObject) -and $Psitem.CreateDate.ToUniversalTime() -lt (Get-Date).ToUniversalTime().AddHours( - $graceperiod) -and $(if ($Database) {$PsItem.Name -in $Database}else {$ExcludedDatabases -notcontains $PsItem.Name})}).ForEach{
                     if ($psitem.RecoveryModel -ne "Simple") {
                         $skip = ($psitem.Status -match "Offline") -or ($psitem.IsAccessible -eq $false) -or ($psitem.Readonly -eq $true -and $skipreadonly -eq $true)
+                        if ($InstanceSMO.VersionMajor -ge 11) {
+                            if (($Psitem.Parent.AvailabilityGroups.AvailabilityDatabases.Name -contains $Psitem.Name)) {
+                                $Parent = $psitem.Parent.Name 
+                                if (($Psitem.Parent.AvailabilityGroups.AvailabilityReplicas.Where{$_.Name -eq $Parent}.Role) -ne ($Psitem.Parent.AvailabilityGroups.AutomatedBackupPreference.ToString())) {
+                                    $Skip = $true
+                                }else{
+                    
+                                }
+                            }
+                        }
                         It -Skip:$skip  "$($psitem.Name) log backups on $($psitem.Parent.Name) should be less than $maxlog minutes" {
                             $psitem.LastLogBackupDate.ToUniversalTime() | Should -BeGreaterThan (Get-Date).ToUniversalTime().AddMinutes( - ($maxlog) + 1) -Because "Taking regular backups is extraordinarily important"
                         }
